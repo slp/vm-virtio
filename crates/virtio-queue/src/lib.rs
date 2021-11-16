@@ -101,23 +101,23 @@ impl Descriptor {
 
     /// Return the guest physical address of descriptor buffer
     pub fn addr(&self) -> GuestAddress {
-        GuestAddress(self.addr)
+        GuestAddress(u64::from_le(self.addr))
     }
 
     /// Return the length of descriptor buffer
     pub fn len(&self) -> u32 {
-        self.len
+        u32::from_le(self.len)
     }
 
     /// Return the flags for this descriptor, including next, write and indirect
     /// bits
     pub fn flags(&self) -> u16 {
-        self.flags
+        u16::from_le(self.flags)
     }
 
     /// Return the value stored in the `next` field of the descriptor.
     pub fn next(&self) -> u16 {
-        self.next
+        u16::from_le(self.next)
     }
 
     /// Check whether this is an indirect descriptor.
@@ -350,6 +350,7 @@ impl<'b, M: GuestAddressSpace> Iterator for AvailIter<'b, M> {
         let head_index: u16 = self
             .mem
             .read_obj(addr)
+            .map(u16::from_le)
             .map_err(|_| error!("Failed to read from memory {:x}", addr.raw_value()))
             .ok()?;
 
@@ -374,11 +375,8 @@ pub struct VirtqUsedElem {
 
 impl VirtqUsedElem {
     /// Create a new `VirtqUsedElem` instance.
-    pub fn new(id: u16, len: u32) -> Self {
-        VirtqUsedElem {
-            id: u32::from(id),
-            len,
-        }
+    pub fn new(id: u32, len: u32) -> Self {
+        VirtqUsedElem { id, len }
     }
 }
 
@@ -532,6 +530,7 @@ impl<M: GuestAddressSpace> Queue<M> {
         self.mem
             .memory()
             .load(addr, order)
+            .map(u16::from_le)
             .map(Wrapping)
             .map_err(Error::GuestMemory)
     }
@@ -561,13 +560,13 @@ impl<M: GuestAddressSpace> Queue<M> {
         let mem = self.mem.memory();
         let next_used_index = u64::from(self.next_used.0 % self.actual_size());
         let addr = self.used_ring.unchecked_add(4 + next_used_index * 8);
-        mem.write_obj(VirtqUsedElem::new(head_index, len), addr)
+        mem.write_obj(VirtqUsedElem::new(u32::to_le(head_index.into()), len), addr)
             .map_err(Error::GuestMemory)?;
 
         self.next_used += Wrapping(1);
 
         mem.store(
-            self.next_used.0,
+            u16::to_le(self.next_used.0),
             self.used_ring.unchecked_add(2),
             Ordering::Release,
         )
@@ -581,7 +580,7 @@ impl<M: GuestAddressSpace> Queue<M> {
         let addr = self.used_ring.unchecked_add(offset);
         self.mem
             .memory()
-            .store(val, addr, order)
+            .store(u16::to_le(val), addr, order)
             .map_err(Error::GuestMemory)
     }
 
@@ -589,7 +588,7 @@ impl<M: GuestAddressSpace> Queue<M> {
     fn set_used_flags(&mut self, val: u16, order: Ordering) -> Result<(), Error> {
         self.mem
             .memory()
-            .store(val, self.used_ring, order)
+            .store(u16::to_le(val), self.used_ring, order)
             .map_err(Error::GuestMemory)
     }
 
@@ -680,6 +679,7 @@ impl<M: GuestAddressSpace> Queue<M> {
             .unchecked_add((4 + self.actual_size() * 2) as u64);
 
         mem.load(used_event_addr, order)
+            .map(u16::from_le)
             .map(Wrapping)
             .map_err(Error::GuestMemory)
     }
