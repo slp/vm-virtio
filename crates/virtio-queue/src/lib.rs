@@ -137,7 +137,7 @@ impl Descriptor {
     /// If this is false, this descriptor is read only.
     /// Write only means the the emulated device can write and the driver can read.
     pub fn is_write_only(&self) -> bool {
-        self.flags & VIRTQ_DESC_F_WRITE != 0
+        self.flags() & VIRTQ_DESC_F_WRITE != 0
     }
 }
 
@@ -213,10 +213,10 @@ impl<M: GuestAddressSpace> DescriptorChain<M> {
             return Err(Error::InvalidIndirectDescriptor);
         }
 
-        let table_len = (desc.len as usize) / VIRTQ_DESCRIPTOR_SIZE;
+        let table_len = (desc.len() as usize) / VIRTQ_DESCRIPTOR_SIZE;
         // Check the target indirect descriptor table is correctly aligned.
         if desc.addr().raw_value() & (VIRTQ_DESCRIPTOR_SIZE as u64 - 1) != 0
-            || (desc.len as usize) & (VIRTQ_DESCRIPTOR_SIZE - 1) != 0
+            || (desc.len() as usize) & (VIRTQ_DESCRIPTOR_SIZE - 1) != 0
             || table_len > usize::from(std::u16::MAX)
         {
             return Err(Error::InvalidIndirectDescriptorTable);
